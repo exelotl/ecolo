@@ -12,6 +12,14 @@ proc yieldScript*() = discard
   ## Yield from within a script.
   ## i.e. Return from the script and allow it to be resumed at this point at a later stage.
 
+macro script*(nameIdent:untyped):untyped =
+  ## Forward-declare a script.
+  let scriptName = nameIdent.strVal
+  let firstProc = ident("script" & scriptName & "Fn0")
+  quote do:
+    proc `firstProc`(): Script {.nimcall.}
+    const `nameIdent`* = cast[Script](`firstProc`)
+
 macro script*(nameIdent:untyped, body:typed):untyped =
   expectKind(nameIdent, nnkIdent)
   expectKind(body, nnkStmtList)
@@ -44,7 +52,13 @@ macro script*(nameIdent:untyped, body:typed):untyped =
       
       for i in startIndex..<stmtList.len:
         
-        let node = stmtList[i]
+        # Todo:
+        #  previously I didn't have to copy this
+        #  now I do, presumably to satisfy some safety checks in newer nim versions
+        #  is it still performant?
+        #  is there a way to copy things more selectively?
+        #  does it break anything with local variable scopes being preserved?
+        let node = stmtList[i].copy()
         # echo "Node ", $i, ": ", treerepr(node)
         
         if not hasYields(node):
@@ -136,8 +150,8 @@ macro script*(nameIdent:untyped, body:typed):untyped =
   
   result = quote do:
     `procDefs`
-    const `nameIdent`* = cast[Script](`firstProc`)
+    when not declared(`nameIdent`):
+      const `nameIdent`* = cast[Script](`firstProc`)
   
   # echo repr(result)
   # echo "\n\n----------------\n"
-
