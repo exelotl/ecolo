@@ -22,7 +22,16 @@ macro script*(nameIdent:untyped):untyped =
 
 macro script*(nameIdent:untyped, body:typed):untyped =
   expectKind(nameIdent, nnkIdent)
-  expectKind(body, nnkStmtList)
+  
+  var body: NimNode = body
+  
+  case body.kind
+  of nnkStmtList:
+    discard # ok
+  of nnkIfStmt, nnkWhileStmt:
+    body = newStmtList(body)
+  else:
+    error("Script macro body cannot be a " & $(body.kind), body)
   
   let scriptName = nameIdent.strVal
   
