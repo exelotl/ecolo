@@ -28,7 +28,7 @@ macro script*(nameIdent:untyped, body:typed):untyped =
   case body.kind
   of nnkStmtList:
     discard # ok
-  of nnkIfStmt, nnkWhileStmt:
+  of nnkIfStmt, nnkWhileStmt, nnkCaseStmt, nnkAsgn:
     body = newStmtList(body)
   else:
     error("Script macro body cannot be a " & $(body.kind), body)
