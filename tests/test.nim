@@ -167,6 +167,96 @@ test "local var init":
   check s.nextint() == 100
 
 
+script TestLocalVarInit2:
+  var
+    a, b = 10
+    c, d: int
+  x = a
+  yieldScript()
+  b += 2
+  x = b
+  yieldScript()
+  x = c
+  d += 1
+  yieldScript()
+  x = d
+  yieldScript()
+
+test "local var init 2":
+  var s = TestLocalVarInit2
+  check s.nextint() == 10
+  check s.nextint() == 12
+  check s.nextint() == 0
+  check s.nextint() == 1
+  s = TestLocalVarInit2
+  check s.nextint() == 10
+  check s.nextint() == 12
+  check s.nextint() == 0
+  check s.nextint() == 1
+
+# Not yet implemented
+#[
+script TestLet:
+  let
+    tmp3 = x
+    tmp4: uint8 = x.uint8
+  x = tmp3 + tmp4.int
+  yieldScript()
+  x += 1
+
+test "let":
+  var s = TestLet
+  x = 33
+  check s.nextint() == 66
+  check s.nextint() == 67
+  check s == nil
+  s = TestLet
+  x = 44
+  check s.nextint() == 88
+  check s.nextint() == 89
+
+script TestCaseStmt:
+  case x
+  of 10:
+    x = 11
+  of 20:
+    x = 21
+    yieldScript()
+  of 30:
+    x = 31
+    yieldScript()
+    x = 32
+  else:
+    x = 99
+    yieldScript()
+    say "crikey"
+  yieldScript()
+
+test "case stmt":
+  var s = TestCaseStmt
+  x = 10
+  check s.nextint() == 11
+  check s == nil
+  
+  s = TestCaseStmt
+  x = 20
+  check s.nextint() == 21
+  check s.nextint() == 21
+  check s == nil
+  
+  s = TestCaseStmt
+  x = 30
+  check s.nextint() == 31
+  check s.nextint() == 32
+  check s == nil
+  
+  s = TestCaseStmt
+  x = 5
+  check s.nextint() == 99
+  check s.nextmsg() == "crikey"
+  check s.nextpart() == nil
+]#
+
 var coins: int
 var choseYes: bool
 

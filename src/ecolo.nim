@@ -12,6 +12,50 @@ proc yieldScript*() = discard
   ## Yield from within a script.
   ## i.e. Return from the script and allow it to be resumed at this point at a later stage.
 
+
+proc fixVars(node: NimNode): NimNode =
+  ## Because `var foo = 10` fails to set foo to 10 on the second time it's encountered,
+  ## we must break it up into `var foo: int; foo = 10`
+  ## 
+  ## Since this also has the effect of cloning the whole tree, we don't need to do it later.
+  
+  case node.kind
+  of nnkLetSection:
+    error("`let` is currently unsupported inside scripts, please use `var` instead.", node)
+    # Changing script to be a pragma applied to procs will probably fix that.
+  
+  of nnkVarSection:
+    let decls = nnkVarSection.newTree()
+    let asgns = newStmtList()
+    for defs in node:
+      var typ = defs[defs.len-2]
+      var val = defs[defs.len-1]
+      if val.kind != nnkEmpty:
+        if typ.kind == nnkEmpty: typ = getType(val)      # infer type
+      else:
+        val = quote do:  # get the zero value (breaks if we use let, see NOTE below)
+          var tmp: `typ`
+          tmp
+      let newDefs = defs.copy()
+      newDefs[defs.len-2] = typ
+      newDefs[defs.len-1] = newEmptyNode() # remove the assignment from the def
+      decls.add(newDefs)
+      asgns.add(newAssignment(defs[defs.len-3], val))  # queue the assignment
+    result = newStmtList(decls, asgns)
+  
+  else:
+    if node.len == 0:
+      result = node
+    else:
+      result = copyNimNode(node)
+      for child in node:
+        # if child.kind == nnkVarSection:
+          #   NOTE: this happens way too many times, which seems really suspicious
+          #   (like, it's re-processing the newly created VarSections?)
+          # echo "Recursing: ", child.kind, " ", child.len, " ", node.len, " ", result.len
+        result.add(fixVars(child))
+
+
 macro script*(nameIdent:untyped):untyped =
   ## Forward-declare a script.
   let scriptName = nameIdent.strVal
@@ -61,13 +105,7 @@ macro script*(nameIdent:untyped, body:typed):untyped =
       
       for i in startIndex..<stmtList.len:
         
-        # Todo:
-        #  previously I didn't have to copy this
-        #  now I do, presumably to satisfy some safety checks in newer nim versions
-        #  is it still performant?
-        #  is there a way to copy things more selectively?
-        #  does it break anything with local variable scopes being preserved?
-        let node = stmtList[i].copy()
+        let node = stmtList[i]
         # echo "Node ", $i, ": ", treerepr(node)
         
         if not hasYields(node):
@@ -142,7 +180,7 @@ macro script*(nameIdent:untyped, body:typed):untyped =
         
       # end walkStmts
     
-    let stmts = walkStmts(stmtList, startIndex)
+    let stmts = walkStmts(fixVars(stmtList), startIndex)
     
     if stmts.len == 0:
       stmts.add(nnkDiscardStmt.newTree(newEmptyNode()))
