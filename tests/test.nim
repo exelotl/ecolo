@@ -194,27 +194,28 @@ test "local var init 2":
   check s.nextint() == 0
   check s.nextint() == 1
 
-# Not yet implemented
-#[
+var counter: int
+proc getCounter(): int =
+  inc counter
+  counter
+
 script TestLet:
-  let
-    tmp3 = x
-    tmp4: uint8 = x.uint8
-  x = tmp3 + tmp4.int
+  let tmp3 = getCounter()
+  x = tmp3
   yieldScript()
-  x += 1
+  x = tmp3 + 1
 
 test "let":
+  counter = 5
   var s = TestLet
-  x = 33
-  check s.nextint() == 66
-  check s.nextint() == 67
-  check s == nil
+  check s.nextint() == 6
+  check s.nextint() == 7
   s = TestLet
-  x = 44
-  check s.nextint() == 88
-  check s.nextint() == 89
+  check s.nextint() == 7
+  check s.nextint() == 8
 
+# Not yet implemented
+#[
 script TestCaseStmt:
   case x
   of 10:

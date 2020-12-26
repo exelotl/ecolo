@@ -20,10 +20,6 @@ proc fixVars(node: NimNode): NimNode =
   ## Since this also has the effect of cloning the whole tree, we don't need to do it later.
   
   case node.kind
-  of nnkLetSection:
-    error("`let` is currently unsupported inside scripts, please use `var` instead.", node)
-    # Changing script to be a pragma applied to procs will probably fix that.
-  
   of nnkVarSection:
     let decls = nnkVarSection.newTree()
     let asgns = newStmtList()
@@ -64,18 +60,9 @@ macro script*(nameIdent:untyped):untyped =
     proc `firstProc`(): Script {.nimcall.}
     const `nameIdent`* = cast[Script](`firstProc`)
 
-macro script*(nameIdent:untyped, body:typed):untyped =
+macro scriptImpl(nameIdent:untyped, body:typed):untyped =
   expectKind(nameIdent, nnkIdent)
-  
-  var body: NimNode = body
-  
-  case body.kind
-  of nnkStmtList:
-    discard # ok
-  of nnkIfStmt, nnkWhileStmt, nnkCaseStmt, nnkAsgn:
-    body = newStmtList(body)
-  else:
-    error("Script macro body cannot be a " & $(body.kind), body)
+  expectKind(body, nnkBlockStmt)
   
   let scriptName = nameIdent.strVal
   
@@ -105,7 +92,7 @@ macro script*(nameIdent:untyped, body:typed):untyped =
       
       for i in startIndex..<stmtList.len:
         
-        let node = stmtList[i]
+        let node = stmtList[i].copy()
         # echo "Node ", $i, ": ", treerepr(node)
         
         if not hasYields(node):
@@ -181,6 +168,7 @@ macro script*(nameIdent:untyped, body:typed):untyped =
       # end walkStmts
     
     let stmts = walkStmts(fixVars(stmtList), startIndex)
+    # let stmts = walkStmts(stmtList, startIndex)
     
     if stmts.len == 0:
       stmts.add(nnkDiscardStmt.newTree(newEmptyNode()))
@@ -202,3 +190,9 @@ macro script*(nameIdent:untyped, body:typed):untyped =
   
   # echo repr(result)
   # echo "\n\n----------------\n"
+
+macro script*(nameIdent:untyped, body:untyped): untyped =
+  quote do:
+    scriptImpl(`nameIdent`):
+      block:
+        `body`
